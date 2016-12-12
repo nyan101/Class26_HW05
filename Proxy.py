@@ -1,101 +1,66 @@
-#!/usr/bin/python
-# This is a simple port-forward / proxy, written using only the default python
-# library. If you want to make a suggestion or fix something you can contact-me
-# at voorloop_at_gmail.com
-# Distributed over IDC(I Don't Care) license
-import socket
+from socket import *
+from multiprocessing import Process, Manager
+from BaseHTTPServer import BaseHTTPRequestHandler
+from StringIO import StringIO
 import select
-import time
-import sys
+import os
 
-# Changing the buffer_size and delay, you can improve the speed and bandwidth.
-# But when buffer get to high or delay go too down, you can broke things
-buffer_size = 4096
-delay = 0.0001
-forward_to = ('smtp.zaz.ufsk.br', 25)
+TCP_IP = '127.0.0.1'
+TCP_PORT = 8080
+BUFFER_SIZE = 1024
 
-class Forward:
-  def __init__(self):
-    self.forward = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+class HTTPRequest(BaseHTTPRequestHandler):
+    def __init__(self, request_text):
+        self.rfile = StringIO(request_text)
+        self.raw_requestline = self.rfile.readline()
+        self.error_code = self.error_message = None
+        self.parse_request()
 
-  def start(self, host, port):
-    try:
-      self.forward.connect((host, port))
-      return self.forward
-    except Exception, e:
-      print e
-      return False
+    def send_error(self, code, message):
+        self.error_code = code
+        self.error_message = message
 
-class TheServer:
-  input_list = []
-  channel = {}
-
-  def __init__(self, host, port):
-    self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    self.server.bind((host, port))
-    self.server.listen(200)
-
-  def main_loop(self):
-    self.input_list.append(self.server)
-    while True:
-      time.sleep(delay)
-      ss = select.select
-      inputready, outputready, exceptready = ss(self.input_list, [], [])
-      print "aaa"
-      for self.s in inputready:
-        if self.s == self.server:
-          print "input ready"
-          self.on_accept()
-          break
-        self.data = self.s.recv(buffer_size)
-        if len(self.data) == 0:
-          print "empty packet"
-          self.on_close()
-          break
-        else:
-          print "input ready"
-          self.on_recv()
-
-  def on_accept(self):
-    forward = Forward().start(forward_to[0], forward_to[1])
-    clientsock, clientaddr = self.server.accept()
-    if forward:
-      print clientaddr, "has connected"
-      self.input_list.append(clientsock)
-      self.input_list.append(forward)
-      self.channel[clientsock] = forward
-      self.channel[forward] = clientsock
-    else:
-      print "Can't establish connection with remote server.",
-      print "Closing connection with client side", clientaddr
-      clientsock.close()
-
-  def on_close(self):
-    print self.s.getpeername(), "has disconnected"
-    #remove objects from input_list
-    self.input_list.remove(self.s)
-    self.input_list.remove(self.channel[self.s])
-    out = self.channel[self.s]
-    # close the connection with client
-    self.channel[out].close()  # equivalent to do self.s.close()
-    # close the connection with remote server
-    self.channel[self.s].close()
-    # delete both objects from channel dict
-    del self.channel[out]
-    del self.channel[self.s]
-
-  def on_recv(self):
-    data = self.data
-    # here we can parse and/or modify the data before send forward
-    print data
-    self.channel[self.s].send(data)
+def proc(from_client, from_server):
+    #todo
 
 if __name__ == '__main__':
-  server = TheServer('', 9090)
-  try:
-    print "aaa"
-    server.main_loop()
-  except KeyboardInterrupt:
-    print "Ctrl C - Stopping server"
-    sys.exit(1)
+    s = socket(AF_INET, SOCK_STREAM)
+    s.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    #s.setblocking(0)
+    manager = Manager()
+    s.bind((TCP_IP, TCP_PORT))
+    s.listen(200) # 200 queues
+    p = '' #for process
+    from_server = manager.Namespace()
+    from_server.val = ''
+    while 1:
+        conn, addr = s.accept()
+        tmp = ''
+        from_client = ''
+        print '[+] Connection address:', addr
+        print '[+] Receiving from client'
+        while 1:
+            r, _, _ = select.select([conn],[],[],1)
+            if(r):
+                print '[+] Have some data'
+                tmp = conn.recv(BUFFER_SIZE) # recv from client
+            else:
+                print '[+] No data to receive'
+                break
+            if not tmp:
+                break
+            print "received data:", tmp
+            from_client += tmp
+        print '[+] Receive Done'
+        print '[+] From Client '
+        print from_client
+        print '[+] Fork process start'
+        p = Process(target=proc, args=(from_client, from_server))
+        p.start()
+        p.join()
+        print '[+] Fork process finish'
+        print '[+] response from server'
+        print from_server.val
+        conn.send(from_server.val)  # send to client
+        conn.close()
+
