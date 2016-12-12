@@ -21,7 +21,32 @@ class HTTPRequest(BaseHTTPRequestHandler):
         self.error_message = message
 
 def proc(from_client, from_server):
-    #todo
+    tmp = ''
+    from_server.val = ''
+    request_from_client = HTTPRequest(from_client)
+    host = request_from_client.headers['host']
+
+    if(host.find(':')==-1):
+        url = host
+        port = 80
+    else:
+        url = host[:host.find(':')]
+        port = int(host[host.find(':')+1:])
+    
+    a = socket(AF_INET, SOCK_STREAM)
+    a.connect((url, port))
+    a.send(from_client) # send to server
+    
+    while True:
+        r, _, _ = select.select([a],[],[],1)
+        if r:
+            tmp = a.recv(BUFFER_SIZE) # recv from server
+        else:
+            break
+        if not tmp:
+            break
+        from_server.val += tmp
+    a.close()
 
 if __name__ == '__main__':
     s = socket(AF_INET, SOCK_STREAM)
@@ -33,13 +58,13 @@ if __name__ == '__main__':
     p = '' #for process
     from_server = manager.Namespace()
     from_server.val = ''
-    while 1:
+    while True:
         conn, addr = s.accept()
         tmp = ''
         from_client = ''
         print '[+] Connection address:', addr
         print '[+] Receiving from client'
-        while 1:
+        while True:
             r, _, _ = select.select([conn],[],[],1)
             if(r):
                 print '[+] Have some data'
