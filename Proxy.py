@@ -7,7 +7,11 @@ import os
 
 TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
-BUFFER_SIZE = 1024
+BUFFER_SIZE = 4096
+
+change = {}
+change['test.gilgil.net'] = ('hacking', 'ABCDEFG')
+change['search.daum.net'] = ('Michael', 'GILBERT')
 
 class HTTPRequest(BaseHTTPRequestHandler):
     def __init__(self, request_text):
@@ -26,7 +30,7 @@ def proc(from_client, from_server):
     request_from_client = HTTPRequest(from_client)
     host = request_from_client.headers['host']
 
-    if(host.find(':')==-1):
+    if(host.find(':')==-1): # default port : 80
         url = host
         port = 80
     else:
@@ -46,6 +50,9 @@ def proc(from_client, from_server):
         if not tmp:
             break
         from_server.val += tmp
+
+    if url in change.keys():
+        from_server.val = from_server.val.replace(change[url][0], change[url][1])
     a.close()
 
 if __name__ == '__main__':
