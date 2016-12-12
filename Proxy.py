@@ -9,9 +9,15 @@ TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 BUFFER_SIZE = 4096
 
-change = {}
-change['test.gilgil.net'] = ('hacking', 'ABCDEFG')
-change['search.daum.net'] = ('Michael', 'GILBERT')
+RecvChange = {}
+RecvChange['test.gilgil.net'] = ('hacking', 'ABCDEFG')
+RecvChange['search.daum.net'] = ('Michael', 'GILBERT')
+
+SendChange = {}
+SendChange['search.daum.net'] = ('Accept-Encoding: gzip', 'Accept-Encoding:     ')
+
+cacheFilter = set(['png', 'jpg', 'swf', 'jpeg'])
+cacheData = {}
 
 class HTTPRequest(BaseHTTPRequestHandler):
     def __init__(self, request_text):
@@ -25,6 +31,7 @@ class HTTPRequest(BaseHTTPRequestHandler):
         self.error_message = message
 
 def proc(from_client, from_server):
+    
     tmp = ''
     from_server.val = ''
     request_from_client = HTTPRequest(from_client)
@@ -36,7 +43,16 @@ def proc(from_client, from_server):
     else:
         url = host[:host.find(':')]
         port = int(host[host.find(':')+1:])
-    
+
+    effectiveURL = url
+    if(effectiveURL.find('?')!=-1):
+        effectiveURL = effectiveURL[:effectiveURL.find('?')]
+
+    #B - send data change
+    if effectiveURL in SendChange.keys():
+        from_server.val = from_server.val.replace(SendChange[url][0], SendChange[url][1])
+
+    # A - proxy(forward)
     a = socket(AF_INET, SOCK_STREAM)
     a.connect((url, port))
     a.send(from_client) # send to server
@@ -51,8 +67,11 @@ def proc(from_client, from_server):
             break
         from_server.val += tmp
 
-    if url in change.keys():
-        from_server.val = from_server.val.replace(change[url][0], change[url][1])
+    # B - recv data change
+    if effectiveURL in RecvChange.keys():
+        from_server.val = from_server.val.replace(RecvChange[url][0], RecvChange[url][1])
+
+    #
     a.close()
 
 if __name__ == '__main__':
