@@ -16,7 +16,7 @@ RecvChange['search.daum.net'] = ('Michael', 'GILBERT')
 SendChange = {}
 SendChange['search.daum.net'] = ('Accept-Encoding: gzip', 'Accept-Encoding:     ')
 
-cacheFilter = set(['png', 'jpg', 'swf', 'jpeg'])
+cacheFilter = ['png', 'jpg', 'swf', 'jpeg', 'gif', 'net/']
 cacheData = {}
 
 class HTTPRequest(BaseHTTPRequestHandler):
@@ -44,12 +44,17 @@ def proc(from_client, from_server):
         url = host[:host.find(':')]
         port = int(host[host.find(':')+1:])
 
-    effectiveURL = url
-    if(effectiveURL.find('?')!=-1):
-        effectiveURL = effectiveURL[:effectiveURL.find('?')]
-
+    # C - cached data
+    if request_from_client.path in cacheData.keys():
+        print "!!!  USE CACHED  !!!\n"
+        from_server.val = cacheData[request_from_client.path]
+        f = open('cacheLog2.txt', 'a')
+        f.write("use cached data : "+str(request_from_client.path)+"\n")
+        f.close()
+        exit(0)
+    
     #B - send data change
-    if effectiveURL in SendChange.keys():
+    if url in SendChange.keys():
         from_server.val = from_server.val.replace(SendChange[url][0], SendChange[url][1])
 
     # A - proxy(forward)
@@ -68,9 +73,18 @@ def proc(from_client, from_server):
         from_server.val += tmp
 
     # B - recv data change
-    if effectiveURL in RecvChange.keys():
+    if url in RecvChange.keys():
         from_server.val = from_server.val.replace(RecvChange[url][0], RecvChange[url][1])
 
+    # C - cache new data
+    if request_from_client.path.split('.')[-1] in cacheFilter:
+        f = open('cacheLog.txt', 'a')
+        f.write('CACHING!!!! ' + request_from_client.path + '\n')
+        f.close()
+        cacheData[request_from_client.path] = from_server.val
+        f = open('cacheDict.txt', 'w')
+        f.write(str(cacheData))
+        f.close()
     #
     a.close()
 
